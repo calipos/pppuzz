@@ -75,7 +75,6 @@ build_g2_src/CMakeLists.txt
 *.json
 *.off
 *.bmp
-*.png
 *.xyz
 *.pts
 *.def
