@@ -3,26 +3,126 @@
 #include <vector>
 #include <random>
 #include <list>
+#include <array>
 #include "json/json.h"
 #include "opencv2/opencv.hpp"
 #include "log.h"
 #include "random.h"
 
-static cv::Mat colorMap = cv::imread("../colorMap/bremm.png");
-constexpr static int IMG_HEIGHT = 480;
-constexpr static int IMG_WIDTH = 360;
-constexpr static int INVALID_HASH = IMG_HEIGHT* IMG_WIDTH;
-constexpr static int BALL_RADIUS = 3;
-constexpr static int MAX_VELOCITY = 10;
-constexpr static int MAX_ANGULAR_VELOCITY = 3;
 
+constexpr std::uint32_t spread16(const std::uint16_t& x) {
+	uint32_t x32 = x;
+	x32 = (x32 | (x32 << 8)) & 0x00FF00FF;
+	x32 = (x32 | (x32 << 4)) & 0x0F0F0F0F;
+	x32 = (x32 | (x32 << 2)) & 0x33333333;
+	x32 = (x32 | (x32 << 1)) & 0x55555555;
+	return x32;
+}
+constexpr std::uint16_t compact16(const std::uint32_t& x) {
+	std::uint32_t x32 = x & 0x55555555;
+	x32 = (x32 | (x32 >> 1)) & 0x33333333;
+	x32 = (x32 | (x32 >> 2)) & 0x0F0F0F0F;
+	x32 = (x32 | (x32 >> 4)) & 0x00FF00FF;
+	x32 = (x32 | (x32 >> 8)) & 0x0000FFFF;
+	return static_cast<uint16_t>(x32);
+}
+constexpr std::uint32_t morton_encode_16_32(const std::uint32_t& x, const std::uint32_t& y) {
+	return spread16(x) | (spread16(y) << 1);
+}
+void morton_decode_16_32(const std::uint32_t& code, uint16_t& x, uint16_t& y) {
+	x = compact16(code);
+	y = compact16(code >> 1);
+}
+auto generMortonCode(const std::uint16_t&height, const std::uint16_t& width) {
+	std::vector<std::vector<std::uint32_t>> mat(height, std::vector<std::uint32_t>(width));
+	for (std::uint16_t r = 0; r < height; ++r) {
+		for (std::uint16_t c = 0; c < width; ++c) {
+			mat[r][c] = morton_encode_16_32(c, r);; 
+		}
+	}
+	return mat;
+}
+void generNeibghourGrids(const std::uint32_t& gridHeight, const std::uint32_t& gridWidth, std::vector<std::uint32_t>& neibghourGrids, std::vector<std::uint8_t>& neibghourGridSize)
+{
+	neibghourGrids.resize(gridHeight * gridWidth * 8);
+	neibghourGridSize.resize(gridHeight * gridWidth);
+	std::uint32_t gridHeight_1 = gridHeight - 1;
+	std::uint32_t gridWidth_1 = gridWidth - 1;
+	for (int r = 0; r < gridHeight; r++)
+	{
+		for (int c = 0; c < gridWidth; c++)
+		{
+			std::uint32_t thisGridIdx = r * gridWidth + c;
+			std::uint8_t& thisNeighborCnt = neibghourGridSize[thisGridIdx];
+			std::uint32_t* neightborIdx = &neibghourGrids[thisGridIdx*8];
+			thisNeighborCnt = 0;
+			if (r>0)
+			{
+				neightborIdx[thisNeighborCnt] = thisGridIdx - gridWidth;
+				thisNeighborCnt += 1;
+				if (c > 0)
+				{
+					neightborIdx[thisNeighborCnt] = thisGridIdx - gridWidth - 1;
+					thisNeighborCnt += 1;
+				}
+				if (c < gridWidth_1)
+				{
+					neightborIdx[thisNeighborCnt] = thisGridIdx - gridWidth + 1;
+					thisNeighborCnt += 1;
+				}
+			}
+			if (c > 0)
+			{
+				neightborIdx[thisNeighborCnt] = thisGridIdx - 1;
+				thisNeighborCnt += 1;
+			}
+			if (c < gridWidth_1)
+			{
+				neightborIdx[thisNeighborCnt] = thisGridIdx + 1;
+				thisNeighborCnt += 1;
+			}
+			if (r < gridHeight_1)
+			{
+				neightborIdx[thisNeighborCnt] = thisGridIdx + gridWidth;
+				thisNeighborCnt += 1;
+				if (c > 0)
+				{
+					neightborIdx[thisNeighborCnt] = thisGridIdx + gridWidth - 1;
+					thisNeighborCnt += 1;
+				}
+				if (c < gridWidth_1)
+				{
+					neightborIdx[thisNeighborCnt] = thisGridIdx + gridWidth + 1;
+					thisNeighborCnt += 1;
+				}
+			}
+		}
+	}
+	return;
+}
+
+static cv::Mat colorMap = cv::imread("../colorMap/bremm.png");
+constexpr static std::uint32_t IMG_HEIGHT = 480;
+constexpr static std::uint32_t IMG_WIDTH = 360;
+constexpr static std::uint32_t INVALID_HASH = 0x0fffffff;
+constexpr static std::uint32_t BALL_RADIUS = 3;
+constexpr static std::uint32_t GRID_UNIT_SIZE = 2 * BALL_RADIUS;
+constexpr static std::uint32_t GRID_HEIGHT = (IMG_HEIGHT % GRID_UNIT_SIZE == 0) ? (IMG_HEIGHT / GRID_UNIT_SIZE) : (IMG_HEIGHT / GRID_UNIT_SIZE + 1);
+constexpr static std::uint32_t GRID_WIDTH = (IMG_WIDTH % GRID_UNIT_SIZE == 0) ? (IMG_WIDTH / GRID_UNIT_SIZE) : (IMG_WIDTH / GRID_UNIT_SIZE + 1);
+constexpr static std::uint32_t GRID_CNT = GRID_HEIGHT * GRID_WIDTH;
+constexpr static std::int32_t MAX_VELOCITY = 10;
+constexpr static std::int32_t MIN_VELOCITY = 3;
+constexpr static std::int32_t MAX_ANGULAR_VELOCITY = 3;
+auto MortonCode = generMortonCode(IMG_HEIGHT, IMG_WIDTH);
+static std::vector<std::uint32_t> neibghourGrids;
+static std::vector<std::uint8_t> neibghourGridSize;
 struct Ball
 {
-	std::uint32_t posHash;
+	std::uint32_t gridPos;
+	cv::Point2f position;
 	cv::Point2f dir;
 	cv::Point2f velocity;
 	float angular_velocity;
-	cv::Point2f position;
 	std::uint8_t radius;
 	std::uint8_t color_r;
 	std::uint8_t color_g;
@@ -34,8 +134,8 @@ struct Ball
 		this->radius = BALL_RADIUS;
 		this->position.x = rng.randDouble(0, xMax);
 		this->position.y = rng.randDouble(0, yMax);
-		this->velocity.x = rng.randDouble(0, MAX_VELOCITY);
-		this->velocity.y = rng.randDouble(0, MAX_VELOCITY);
+		this->velocity.x = rng.randDouble(MIN_VELOCITY, MAX_VELOCITY);
+		this->velocity.y = rng.randDouble(MIN_VELOCITY, MAX_VELOCITY);
 		this->angular_velocity = rng.randDouble(-MAX_ANGULAR_VELOCITY, MAX_ANGULAR_VELOCITY);
 		this->dir.x = rng.randDouble(-1, 1);
 		this->dir.y = rng.randDouble(-1, 1);
@@ -78,43 +178,127 @@ struct Ball
 			balls[i].position.x += balls[i].velocity.x * period;
 			balls[i].position.y += balls[i].velocity.y * period;
 			//border reflect here    ------------------------------------------
+			{
+				if (balls[i].position.y<0)
+				{
+					balls[i].position.y = 0;
+					balls[i].velocity.y *= -1;
+				}
+				if (balls[i].position.x < 0)
+				{
+					balls[i].position.x = 0;
+					balls[i].velocity.x *= -1;
+				}
+				if (balls[i].position.x >= IMG_WIDTH)
+				{
+					balls[i].position.x = IMG_WIDTH-0.1;
+					balls[i].velocity.x *= -1;
+				}
+			}
+			//border reflect here    ==========================================
 			int hashPosX = std::floor(balls[i].position.x);
 			int hashPosY = std::floor(balls[i].position.y);
 			if (hashPosX < 0 || hashPosX >= IMG_WIDTH || hashPosY < 0 || hashPosY >= IMG_HEIGHT)
 			{
 				posHash[i].first = INVALID_HASH;
 				posHash[i].second = i;
-				balls[i].posHash = posHash[i].first;
+				balls[i].gridPos = INVALID_HASH;
 			}
 			else 
 			{
-				posHash[i].first = IMG_WIDTH * hashPosY + hashPosX;
+				posHash[i].first = MortonCode[hashPosY][hashPosX];
 				posHash[i].second = i; 
-				balls[i].posHash = posHash[i].first;
+				int gridPosX = std::floor(balls[i].position.x/ GRID_UNIT_SIZE);
+				int gridPosY = std::floor(balls[i].position.y/ GRID_UNIT_SIZE);
+				balls[i].gridPos = gridPosX + gridPosY * GRID_WIDTH;
 			}
 		}
 		std::sort(posHash.begin(), posHash.end(), [](const auto& a, const auto& b) {return a.first < b.first; });
-		std::vector<Ball> balls_sorted(balls.size());
+		std::vector<Ball> balls_sorted;
+		balls_sorted.reserve(balls.size());
 		for (int i = 0; i < posHash.size(); i++)
 		{
-			balls_sorted[i] = balls[posHash[i].second];
+			if (posHash[i].first == INVALID_HASH)
+			{
+				break;
+			}
+			balls_sorted.emplace_back( balls[posHash[i].second]);
 		}
 		balls = balls_sorted;
+		std::vector<std::uint32_t>grid_idx_start(GRID_CNT, INVALID_HASH);
+		std::vector<std::uint32_t>grid_idx_end(GRID_CNT, 0);
+		for (std::uint32_t i = 0; i < balls.size(); i++)
+		{
+			const std::int32_t& gridPos = balls[i].gridPos;
+			if (gridPos!= INVALID_HASH)
+			{
+				if (grid_idx_start[gridPos]== INVALID_HASH)
+				{
+					grid_idx_start[gridPos] = i;
+					grid_idx_end[gridPos] = i + 1;
+				}
+				else
+				{
+					grid_idx_end[gridPos] = i + 1;
+				}
+			}
+		}
+		for (std::uint32_t i = 0; i < balls.size(); i++)
+		{
+			const std::int32_t& gridPos = balls[i].gridPos;
+			const std::uint8_t& neightCnt = neibghourGridSize[gridPos];
+			const std::uint32_t const* neighbors = (const std::uint32_t const*)&neibghourGrids[gridPos * 8];
+			for (std::uint8_t neighbor_i = 0; neighbor_i < neightCnt; neighbor_i++)
+			{
+				std::uint32_t startIdx = grid_idx_start[neighbors[neighbor_i]];
+				if (startIdx == INVALID_HASH)
+				{
+					continue;
+				}
+				std::uint32_t endIdx = grid_idx_end[neighbors[neighbor_i]];
+				for (std::uint32_t j = startIdx; j < endIdx && startIdx != INVALID_HASH; j++)
+				{
+					if (i==j)
+					{
+						continue;
+					}
+					cv::Point2f relPos = balls[i].position - balls[j].position;
+					float dist = cv::norm(relPos);
+					if (dist< GRID_UNIT_SIZE)
+					{
+						balls[i].velocity += relPos;
+					}
+				}				 
+			}
+			//int gridPosX = gridPosGRID_UNIT_SIZE);
+			//int gridPosY = std::floor(balls[i].position.y / GRID_UNIT_SIZE);
+		}
 		return;
 	}
 };
 int main()
-{
+{ 
+	generNeibghourGrids(GRID_HEIGHT, GRID_WIDTH, neibghourGrids, neibghourGridSize);
 	cv::Mat img = cv::Mat::zeros(IMG_HEIGHT, IMG_WIDTH, CV_8UC3);
+	//cv::Mat MortonCode = cv::Mat::zeros(IMG_HEIGHT, IMG_WIDTH, CV_32SC1);
+	//for (std::uint16_t r = 0; r < IMG_HEIGHT; r++)
+	//{
+	//	for (std::uint16_t c = 0; c < IMG_WIDTH; c++)
+	//	{
+	//		MortonCode.ptr<int>(r)[c] = morton_encode_16_32(c,r);
+	//	}
+	//}
+
+
 	std::vector<Ball>balls;
-	for (size_t i = 0; i < 100; i++)
+	for (size_t i = 0; i < 400; i++)
 	{
 		balls.emplace_back(Ball(IMG_WIDTH, IMG_HEIGHT));
 	}
-	for (size_t i = 0; i < 200; i++)
+	for (size_t i = 0; i < 8000; i++)
 	{
 		cv::Mat frame = Ball::draw(img, balls);
-		Ball::upDate(balls,0.5);
+		Ball::upDate(balls,0.025);
 		cv::imshow("1",frame);
 		cv::waitKey(15);
 	}
