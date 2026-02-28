@@ -102,16 +102,17 @@ void generNeibghourGrids(const std::uint32_t& gridHeight, const std::uint32_t& g
 }
 
 static cv::Mat colorMap = cv::imread("../colorMap/bremm.png");
-constexpr static std::uint32_t IMG_HEIGHT = 480;
-constexpr static std::uint32_t IMG_WIDTH = 360;
+constexpr static float IMG_SCALE_FACTOR = 1;
+constexpr static std::uint32_t IMG_HEIGHT = 1280* IMG_SCALE_FACTOR;// 480;
+constexpr static std::uint32_t IMG_WIDTH = 720 * IMG_SCALE_FACTOR;// 360;
 constexpr static std::uint32_t INVALID_HASH = 0x0fffffff;
-constexpr static std::uint32_t BALL_RADIUS = 3;
+constexpr static std::uint32_t BALL_RADIUS = 3 * IMG_SCALE_FACTOR;
 constexpr static std::uint32_t GRID_UNIT_SIZE = 2 * BALL_RADIUS;
 constexpr static std::uint32_t GRID_HEIGHT = (IMG_HEIGHT % GRID_UNIT_SIZE == 0) ? (IMG_HEIGHT / GRID_UNIT_SIZE) : (IMG_HEIGHT / GRID_UNIT_SIZE + 1);
 constexpr static std::uint32_t GRID_WIDTH = (IMG_WIDTH % GRID_UNIT_SIZE == 0) ? (IMG_WIDTH / GRID_UNIT_SIZE) : (IMG_WIDTH / GRID_UNIT_SIZE + 1);
 constexpr static std::uint32_t GRID_CNT = GRID_HEIGHT * GRID_WIDTH;
-constexpr static std::int32_t MAX_VELOCITY = 10;
-constexpr static std::int32_t MIN_VELOCITY = 3;
+constexpr static std::int32_t MAX_VELOCITY = 1;
+constexpr static std::int32_t MIN_VELOCITY = 0.5;
 constexpr static std::int32_t MAX_ANGULAR_VELOCITY = 3;
 auto MortonCode = generMortonCode(IMG_HEIGHT, IMG_WIDTH);
 static std::vector<std::uint32_t> neibghourGrids;
@@ -134,12 +135,14 @@ struct Ball
 		this->radius = BALL_RADIUS;
 		this->position.x = rng.randDouble(0, xMax);
 		this->position.y = rng.randDouble(0, yMax);
-		this->velocity.x = rng.randDouble(MIN_VELOCITY, MAX_VELOCITY);
-		this->velocity.y = rng.randDouble(MIN_VELOCITY, MAX_VELOCITY);
+		float velocitySign = rng.randDouble(-1, 1) > 0 ? 1 : -1;
+		this->velocity.x = velocitySign * rng.randDouble(MIN_VELOCITY, MAX_VELOCITY);
+		velocitySign = rng.randDouble(-1, 1) > 0 ? 1 : -1;
+		this->velocity.y = velocitySign * rng.randDouble(MIN_VELOCITY, MAX_VELOCITY);
 		this->angular_velocity = rng.randDouble(-MAX_ANGULAR_VELOCITY, MAX_ANGULAR_VELOCITY);
-		this->dir.x = rng.randDouble(-1, 1);
-		this->dir.y = rng.randDouble(-1, 1);
-		this->dir /= cv::norm(this->dir);
+		float dirRad = rng.randDouble(0, CV_PI);
+		this->dir.x = cos(dirRad);
+		this->dir.y = sin(dirRad);
 		if (colorMap.empty())
 		{
 			this->color_b = 255;
@@ -267,6 +270,10 @@ struct Ball
 					if (dist< GRID_UNIT_SIZE)
 					{
 						balls[i].velocity += relPos;
+						//if (balls[i].velocity.x > MAX_VELOCITY)balls[i].velocity.x = MAX_VELOCITY;
+						//if (balls[i].velocity.y > MAX_VELOCITY)balls[i].velocity.y = MAX_VELOCITY;
+						//if (balls[i].velocity.x <-MAX_VELOCITY)balls[i].velocity.x = -MAX_VELOCITY;
+						//if (balls[i].velocity.y <-MAX_VELOCITY)balls[i].velocity.y = -MAX_VELOCITY;
 					}
 				}				 
 			}
@@ -278,6 +285,7 @@ struct Ball
 };
 int main()
 { 
+	bool saveToMp4 = true;
 	generNeibghourGrids(GRID_HEIGHT, GRID_WIDTH, neibghourGrids, neibghourGridSize);
 	cv::Mat img = cv::Mat::zeros(IMG_HEIGHT, IMG_WIDTH, CV_8UC3);
 	//cv::Mat MortonCode = cv::Mat::zeros(IMG_HEIGHT, IMG_WIDTH, CV_32SC1);
@@ -291,17 +299,42 @@ int main()
 
 
 	std::vector<Ball>balls;
-	for (size_t i = 0; i < 400; i++)
+	for (size_t i = 0; i < 3000; i++)
 	{
 		balls.emplace_back(Ball(IMG_WIDTH, IMG_HEIGHT));
 	}
-	for (size_t i = 0; i < 8000; i++)
+
+	cv::VideoWriter* mp4Writer = nullptr;
+	if (saveToMp4)
+	{
+		int fourcc = cv::VideoWriter::fourcc('m', 'p', '4', 'v');
+		std::string output_video = "output.mp4";           // 输出视频文件名
+		double fps = 90;
+		mp4Writer = new cv::VideoWriter(output_video, fourcc, fps, cv::Size(IMG_WIDTH, IMG_HEIGHT));
+		if (!mp4Writer->isOpened()) {
+			std::cerr << "错误：无法创建视频文件！请检查编码器支持或路径权限。" << std::endl;
+			return -1;
+		}
+	}
+
+
+	int frameCnt = 8000;
+	for (size_t i = 0; i < frameCnt; i++)
 	{
 		cv::Mat frame = Ball::draw(img, balls);
-		Ball::upDate(balls,0.025);
-		cv::imshow("1",frame);
-		cv::waitKey(15);
+		Ball::upDate(balls,0.8);
+		if (saveToMp4) 
+		{
+			mp4Writer->write(frame);
+		}
+		else
+		{
+			cv::imshow("1",frame);
+			cv::waitKey(15);
+		}
+		LOG_OUT << i << "/" << frameCnt;
+
 	}
-	
+	mp4Writer->release();
 	return 0;
 }
