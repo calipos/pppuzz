@@ -147,11 +147,23 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ball.cpp" />
+    <ClCompile Include="color.cpp" />
+    <ClCompile Include="draw.cpp" />
+    <ClCompile Include="floater.cpp" />
+    <ClCompile Include="frame.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="mapEdit.cpp" />
     <ClCompile Include="random.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ball.h" />
+    <ClInclude Include="color.h" />
+    <ClInclude Include="draw.h" />
+    <ClInclude Include="floater.h" />
+    <ClInclude Include="frame.h" />
     <ClInclude Include="log.h" />
+    <ClInclude Include="mapEdit.h" />
     <ClInclude Include="random.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
