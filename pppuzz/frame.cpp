@@ -101,8 +101,9 @@ void Frame::generNeibghourGrids(const std::uint32_t& gridHeight, const std::uint
 	return;
 }
 
-void Frame::upDate(std::vector<Ball>& balls, std::vector<MapElement>& mapElement, const float& period)
+void Frame::upDate(std::vector<Ball>& balls, std::vector<MapElement>& mapElement, Floater& controlFloater, const float& period)
 {
+	controlFloater.postionX += controlFloater.velocity * period;
 	std::vector<std::pair<std::uint32_t, std::uint32_t>>posHash(balls.size());
 	for (int i = 0; i < balls.size(); i++)
 	{
@@ -214,8 +215,6 @@ void Frame::upDate(std::vector<Ball>& balls, std::vector<MapElement>& mapElement
 
 int Frame::run(const int& frameCnt,const bool& saveToMp4)
 { 
-	Floater controlFloater;
-	Floater::draw(frame, controlFloater);
 
 
 	cv::VideoWriter* mp4Writer = nullptr;
@@ -232,24 +231,25 @@ int Frame::run(const int& frameCnt,const bool& saveToMp4)
 	}
 	 
 
+	Floater controlFloater;
 	std::vector<Ball>balls;
 	balls.reserve(2048);
 	std::vector<MapElement>map1 = transfStrToMap("1.map", IMG_WIDTH);
-
+	controlFloater.setEntry(map1);
 
 	for (size_t i = 0; i < frameCnt; i++)
 	{
-		if (true)
+		if (balls.size()==0)
 		{
 			balls.emplace_back(Ball::generAnewFallBall(new_fall_ball_pos_x, new_fall_ball_pos_y, new_fall_ball_velocity));			
 		}
-
-
-
-
-
-		cv::Mat currframe = Ball::draw(frame, balls);
-		//Ball::upDate(balls, 0.8);
+		controlFloater.figureScore(balls);
+		Frame::upDate(balls, map1, controlFloater, 0.8);
+		cv::Mat currframe;
+		frame.copyTo(currframe);
+		MapElement::draw(currframe, map1);
+		Ball::draw(currframe, balls);
+		Floater::draw(frame, controlFloater);
 		if (saveToMp4)
 		{
 			mp4Writer->write(currframe);

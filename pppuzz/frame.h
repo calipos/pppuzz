@@ -8,6 +8,7 @@
 #include "opencv2/opencv.hpp"
 #include "ball.h"
 #include "mapEdit.h"
+#include "floater.h"
 constexpr float IMG_SCALE_FACTOR = 1;
 constexpr std::uint32_t IMG_HEIGHT = 1366 * IMG_SCALE_FACTOR;// 480;
 constexpr std::uint32_t IMG_WIDTH = 768 * IMG_SCALE_FACTOR;// 360;
@@ -29,7 +30,7 @@ struct Frame
 	std::vector<std::uint32_t> neibghourGrids;
 	std::vector<std::uint8_t> neibghourGridSize;
 	void generNeibghourGrids(const std::uint32_t& gridHeight, const std::uint32_t& gridWidth, std::vector<std::uint32_t>& neibghourGrids, std::vector<std::uint8_t>& neibghourGridSize);
-	void upDate(std::vector<Ball>& balls, std::vector<MapElement>& mapElement, const float& period);
+	void upDate(std::vector<Ball>& balls, std::vector<MapElement>& mapElement, Floater& controlFloater, const float& period);
 	cv::Mat frame;
 	std::vector<std::vector<std::uint32_t>>  MortonCode;
 	int run(const int& frameCnt, const bool& saveToMp4);

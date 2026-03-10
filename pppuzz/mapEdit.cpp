@@ -6,8 +6,19 @@
 #include <filesystem>
 #include "opencv2/opencv.hpp"
 #include "mapEdit.h"
+#include "frame.h"
 #include "log.h"
-
+MapElement MapElement::createEntry(const float& x, const float& y)
+{
+	MapElement ret;
+	ret.elementType = ElementType::Entry;
+	ret.shape = Shape::Rectangle;
+	ret.health = std::numeric_limits<std::uint32_t>::max();
+	ret.metaData.resize(2);
+	ret.metaData[0] = x;
+	ret.metaData[1] = y;
+	return ret;
+}
 MapElement MapElement::createRectBorder(const float& leftUpX, const float& leftUpY, const float& width, const float& height)
 {
 	MapElement ret;
@@ -309,15 +320,21 @@ std::vector<MapElement> transfStrToMap(const std::filesystem::path& path, const 
 		std::vector<std::uint32_t>lineMetaData(lineHasElementCnt);
 		for (int i = 0; i < lineHasElementCnt; i++)
 		{
-			if (segs[i][0]=='-')
+			std::stringstream ss;
+			ss << segs[i];
+			int mapTempInt = 0;
+			ss >> mapTempInt;
+			if (mapTempInt==-1)
 			{
 				lineMetaData[i] = std::numeric_limits<std::int32_t>::max();
 			}
+			else if (mapTempInt==-2)//entry
+			{
+				lineMetaData[i] = std::numeric_limits<std::int32_t>::max()-1;
+			}
 			else
 			{
-				std::stringstream ss;
-				ss << segs[i];
-				ss >> lineMetaData[i];
+				lineMetaData[i] = mapTempInt;
 			}
 		}
 		mapMetaData.emplace_back(lineMetaData);
@@ -340,18 +357,23 @@ std::vector<MapElement> transfStrToMap(const std::filesystem::path& path, const 
 			{
 				continue;
 			}
+			else if (d[i] == std::numeric_limits<std::int32_t>::max()-1)
+			{
+				elems.emplace_back(MapElement::createEntry(i * drawScale, lineNum * drawScale));
+				
+			}
 			else
 			{
 				elems.emplace_back(MapElement::createRectBrick(i * drawScale, lineNum * drawScale, drawScale, drawScale, d[i]));
 			}
 		}
 		lineNum+=1;
-	}	
+	}	 
 	std::list<MapElement> borderElems = extrctBorderElements(borderMap, drawScale);
 	for (auto&d: borderElems)
 	{
 		elems.emplace_back(d);
-	}  
+	}   
 	return elems;
 }
 cv::Mat generBorderPic(const int& squareSize)

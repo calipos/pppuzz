@@ -10,6 +10,7 @@
 Ball::Ball() {}
 Ball::Ball(const int& xMax, const int& yMax)
 {
+	ballType = BallType::Nromal;
 	auto& rng = ThreadSafeRandom::getInstance();
 	this->radius = BALL_RADIUS;
 	this->position.x = rng.randDouble(0, xMax);
@@ -67,18 +68,16 @@ Ball Ball::generAnewFallBall(const int& posx, const int& posy,const float& veloc
 	}
 	return ret;
 }
-cv::Mat Ball::draw(const cv::Mat& img, const std::vector<Ball>balls)
+void Ball::draw(cv::Mat& img, const std::vector<Ball>balls)
 {
 	if (img.empty())
 	{
 		LOG_ERR_OUT << "img.empty";
-		return  cv::Mat();
+		return;
 	}
-	cv::Mat copy;
-	img.copyTo(copy);
 	for (const auto& d : balls)
 	{
-		cv::circle(copy, d.position, d.radius, cv::Scalar(d.color_b, d.color_g, d.color_r), -1);
+		cv::circle(img, d.position, d.radius, cv::Scalar(d.color_b, d.color_g, d.color_r), -1);
 	}
-	return copy;
+	return;
 }

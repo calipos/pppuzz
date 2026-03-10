@@ -149,7 +149,6 @@
   <ItemGroup>
     <ClCompile Include="ball.cpp" />
     <ClCompile Include="color.cpp" />
-    <ClCompile Include="draw.cpp" />
     <ClCompile Include="floater.cpp" />
     <ClCompile Include="frame.cpp" />
     <ClCompile Include="main.cpp" />
@@ -159,7 +158,6 @@
   <ItemGroup>
     <ClInclude Include="ball.h" />
     <ClInclude Include="color.h" />
-    <ClInclude Include="draw.h" />
     <ClInclude Include="floater.h" />
     <ClInclude Include="frame.h" />
     <ClInclude Include="log.h" />

@@ -4,6 +4,11 @@
 #include "opencv2/opencv.hpp"
 struct Ball
 {
+	enum class BallType
+	{
+		Nromal=1,
+		DoubleAward=2,
+	};
 	std::uint32_t gridPos;
 	cv::Point2f position;
 	cv::Point2f dir;
@@ -13,10 +18,11 @@ struct Ball
 	std::uint8_t color_r;
 	std::uint8_t color_g;
 	std::uint8_t color_b;
+	BallType ballType;
 	Ball();
 	Ball(const int& xMax, const int& yMax);
 	static Ball generAnewFallBall(const int& posx, const int& posy,const float& velocity);
-	static cv::Mat draw(const cv::Mat& img, const std::vector<Ball>balls);
+	static void draw(cv::Mat& img, const std::vector<Ball>balls);
 };
 
 #endif // !__BALL_H__

@@ -9,6 +9,7 @@ struct MapElement
 	{
 		Brick = 1,
 		Border = 2,
+		Entry = 3,
 	};
 	enum class Shape
 	{
@@ -20,6 +21,7 @@ struct MapElement
 	ElementType elementType;
 	std::vector<float>metaData;
 	static MapElement createRectBorder(const float& leftUpX, const float& leftUpY, const float& rightDownX, const float& rightDownY);
+	static MapElement createEntry(const float& x, const float& y);
 	static MapElement createRectBrick(const float& leftUpX, const float& leftUpY, const float& rightDownX, const float& rightDownY, const int& health = 1);
 	static void draw(cv::Mat& frame, const std::vector<MapElement>& elems);
 	static cv::Scalar borderColor;
